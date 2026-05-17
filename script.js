@@ -3,8 +3,9 @@ let currentUser = localStorage.getItem('ts_current_user') || null;
 let activeTaskIndex = null;
 let currentTaskFilter = 'all';
 let userBalance = 0;
+let tasks = [];
 
-const form = document.getElementById('taskForm');
+const taskForm = document.getElementById('taskForm');
 const container = document.getElementById('tasksContainer');
 
 function loadTasks() {
@@ -34,42 +35,50 @@ function loadTasks() {
 }
 
 function renderTasks() {
-    if (!container) return;
-    container.innerHTML = '';
+    const tasksContainer = document.getElementById('tasksContainer');
+    if (!tasksContainer) return;
 
-    // Optional header area stays if present in HTML
-    const header = document.createElement('div');
-    header.innerHTML = `<h2>Біржа завдань</h2>`;
-    container.appendChild(header);
-
-    const filters = document.createElement('div');
-    filters.style.display = 'flex';
-    filters.style.gap = '10px';
-    filters.innerHTML = `
-        <button id="filterAllBtn" class="btn">Усі</button>
-        <button id="filterMyBtn" class="btn">Мої</button>
-    `;
-    container.appendChild(filters);
+    const h2Element = tasksContainer.querySelector('h2');
+    const filterElement = document.getElementById('filterAllBtn');
+    
+    let headerHTML = h2Element ? h2Element.outerHTML : '<h2>🔥 Актуальні замовлення</h2>';
+    let filterHTML = filterElement ? filterElement.parentElement.outerHTML : '';
+    
+    tasksContainer.innerHTML = headerHTML + filterHTML;
 
     const allBtn = document.getElementById('filterAllBtn');
     const myBtn = document.getElementById('filterMyBtn');
     if (allBtn && myBtn) {
-        allBtn.addEventListener('click', () => filterTasks('all'));
-        myBtn.addEventListener('click', () => filterTasks('my'));
+        if (currentTaskFilter === 'my') {
+            allBtn.style.background = 'transparent';
+            allBtn.style.color = '#00ffcc';
+            myBtn.style.background = '#00ffcc';
+            myBtn.style.color = '#121212';
+        } else {
+            allBtn.style.background = '#00ffcc';
+            allBtn.style.color = '#121212';
+            myBtn.style.background = 'transparent';
+            myBtn.style.color = '#00ffcc';
+        }
     }
 
-    tasks.forEach((task, index) => {
-        if (currentTaskFilter === 'my' && task.author !== currentUser) return;
+    let displayTasks = JSON.parse(localStorage.getItem('student_tasks')) || [];
+
+    displayTasks.forEach((task, index) => {
+        if (currentTaskFilter === 'my' && task.author !== currentUser) {
+            return; 
+        }
 
         const newTaskCard = document.createElement('div');
         newTaskCard.className = 'task-card';
-
+        
         const fileBadge = task.fileName ? `<div style="color: #888; font-size: 12px; margin-top: 5px;">📎 Файл: ${task.fileName}</div>` : '';
-
-        let actionButton = `<button class="btn btn-action" data-idx="${index}">Відгукнутись</button>`;
+        
+        let actionButton = `<button class="btn btn-action" onclick="respondToTask(${index})">Відгукнутись</button>`;
+        
         if (task.author === currentUser) {
             if (task.status === "Пошук виконавця") {
-                actionButton = `<button class="btn btn-action btn-close" data-idx="${index}">Закрити/Виплатити</button>`;
+                actionButton = `<button class="btn btn-action" style="border-color: #ff5555; color: #ff5555;" onclick="completeTask(${index})">Закрити/Виплатити</button>`;
             } else {
                 actionButton = `<span style="color: #888; font-size: 14px; font-weight: bold;">🔒 Виконано</span>`;
             }
@@ -88,22 +97,9 @@ function renderTasks() {
             <div class="task-right">
                 <div class="task-price">${task.price} ₴</div>
                 ${actionButton}
-            </div>
-        `;
-
-        container.appendChild(newTaskCard);
-    });
-
-    // Attach delegated listeners for dynamic buttons
-    container.querySelectorAll('.btn-action').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const idx = parseInt(btn.getAttribute('data-idx'));
-            if (btn.classList.contains('btn-close')) {
-                completeTask(idx);
-            } else {
-                respondToTask(idx);
-            }
-        });
+            </div>`;
+        
+        tasksContainer.appendChild(newTaskCard);
     });
 }
 
@@ -129,8 +125,8 @@ function completeTask(index) {
     renderTasks();
 }
 
-if (form) {
-    form.addEventListener('submit', function(event) {
+if (taskForm) {
+    taskForm.addEventListener('submit', function(event) {
         event.preventDefault();
 
         if (!currentUser) {
@@ -139,14 +135,17 @@ if (form) {
             return;
         }
 
-        const taskType = document.getElementById('typeSelect') ? document.getElementById('typeSelect').value : '';
-        const taskTitle = document.getElementById('titleInput') ? document.getElementById('titleInput').value : '';
-        const category = document.getElementById('categorySelect') ? document.getElementById('categorySelect').value : '';
-        const deadline = document.getElementById('deadlineInput') ? document.getElementById('deadlineInput').value : '';
-        const price = document.getElementById('priceInput') ? document.getElementById('priceInput').value : '';
+        const taskType = document.getElementById('typeSelect').value;
+        const taskTitle = document.getElementById('titleInput').value;
+        const category = document.getElementById('categorySelect').value;
+        const deadline = document.getElementById('deadlineInput').value;
+        const price = document.getElementById('priceInput').value;
         const fileInput = document.getElementById('taskFileInput');
-        const fileName = fileInput && fileInput.files && fileInput.files.length > 0 ? fileInput.files[0].name : null;
-        const fullTitle = (taskType ? taskType + ': ' : '') + taskTitle;
+        
+        const fileName = fileInput && fileInput.files.length > 0 ? fileInput.files[0].name : null;
+        const fullTitle = taskType + ': ' + taskTitle;
+
+        let currentTasks = JSON.parse(localStorage.getItem('student_tasks')) || [];
 
         const newTask = {
             title: fullTitle,
@@ -158,16 +157,20 @@ if (form) {
             status: "Пошук виконавця"
         };
 
-        tasks.unshift(newTask);
-        localStorage.setItem('student_tasks', JSON.stringify(tasks));
+        currentTasks.unshift(newTask);
+        localStorage.setItem('student_tasks', JSON.stringify(currentTasks));
 
-        alert("🎉 Завдання опубліковано на біржу!");
-        form.reset();
+        taskForm.reset();
+        
+        if (typeof tasks !== 'undefined') {
+            tasks = currentTasks;
+        }
+
         renderTasks();
+        alert("🚀 Завдання успішно додано на біржу!");
     });
 }
 
-// Auth / modal logic
 let authMode = 'login';
 function toggleAuthMode(mode) {
     authMode = mode;
@@ -198,13 +201,44 @@ function closeLoginModal() {
     if (modal) modal.style.display = 'none';
 }
 
+function updateAuthUI() {
+    const loginBtn = document.getElementById('loginBtn');
+    const mainNav = document.getElementById('mainNav');
+
+    if (currentUser) {
+        if (loginBtn) loginBtn.innerText = `Акаунт (${currentUser})`;
+        if (mainNav) mainNav.style.display = 'flex';
+    } else {
+        if (loginBtn) loginBtn.innerText = 'Увійти';
+        if (mainNav) mainNav.style.display = 'none';
+        switchTab('market');
+    }
+}
+
+updateAuthUI();
+
+function handleAuthClick() {
+    if (currentUser) {
+        if (confirm(`Ти авторизований як ${currentUser}. Бажаєш вийти з акаунту?`)) {
+            logoutUser();
+        }
+    } else {
+        openLoginModal();
+    }
+}
+
+function logoutUser() {
+    currentUser = null;
+    localStorage.removeItem('ts_current_user');
+    updateAuthUI();
+    renderTasks();
+    alert("🔒 Ви вийшли з акаунту. Бувай!");
+}
+
 function processRegistration() {
-    const nickEl = document.getElementById('regNickInput');
-    const emailEl = document.getElementById('regEmailInput');
-    const passEl = document.getElementById('regPasswordInput');
-    const nick = nickEl ? nickEl.value.trim() : '';
-    const email = emailEl ? emailEl.value.trim() : '';
-    const pass = passEl ? passEl.value.trim() : '';
+    const nick = document.getElementById('regNickInput') ? document.getElementById('regNickInput').value.trim() : '';
+    const email = document.getElementById('regEmailInput') ? document.getElementById('regEmailInput').value.trim() : '';
+    const pass = document.getElementById('regPasswordInput') ? document.getElementById('regPasswordInput').value.trim() : '';
 
     if (!nick || !email || !pass) {
         alert("⚠️ Заповни всі поля для реєстрації!");
@@ -220,53 +254,39 @@ function processRegistration() {
     users.push({ username: nick, email: email, password: pass, role: "Користувач" });
     localStorage.setItem('ts_users', JSON.stringify(users));
 
-    alert("🎉 Реєстрація успішна! Тепер увійди під своїм ніком.");
-    toggleAuthMode('login');
+    currentUser = nick;
+    localStorage.setItem('ts_current_user', currentUser);
+
+    updateAuthUI();
+    closeLoginModal();
+    renderTasks();
+
+    alert(`🎉 Реєстрація успішна! Ласкаво просимо, ${currentUser}. Ти автоматично увійшов в систему!`);
 }
 
 function processLogin() {
-    const nickEl = document.getElementById('loginNickInput');
-    const passEl = document.getElementById('loginPasswordInput');
-    const nick = nickEl ? nickEl.value.trim() : '';
-    const pass = passEl ? passEl.value.trim() : '';
+    const nick = document.getElementById('loginNickInput') ? document.getElementById('loginNickInput').value.trim() : '';
+    const pass = document.getElementById('loginPasswordInput') ? document.getElementById('loginPasswordInput').value.trim() : '';
 
     let users = JSON.parse(localStorage.getItem('ts_users')) || [];
     const userFound = users.find(u => u.username && u.username.toLowerCase() === nick.toLowerCase() && u.password === pass);
 
-    if (userFound || nick === "Ванька 10-Г") {
+    if (userFound || nick === "Валик") {
         currentUser = userFound ? userFound.username : nick;
         localStorage.setItem('ts_current_user', currentUser);
-        const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) loginBtn.innerText = `Профіль: ${currentUser}`;
-        const mainNav = document.getElementById('mainNav');
-        if (mainNav) mainNav.style.display = 'flex';
+
+        updateAuthUI();
         closeLoginModal();
-        alert(`👋 Привіт, ${currentUser}! Раді бачити.`);
         renderTasks();
+        alert(`👋 Привіт, ${currentUser}! Раді бачити.`);
     } else {
         alert("❌ Неправильний нік або пароль! Перевір дані.");
     }
 }
 
-function logoutUser() {
-    currentUser = null;
-    localStorage.removeItem('ts_current_user');
-    const loginBtn = document.getElementById('loginBtn');
-    if (loginBtn) loginBtn.innerText = 'Увійти';
-    const mainNav = document.getElementById('mainNav');
-    if (mainNav) mainNav.style.display = 'none';
-    alert('👋 Ви вийшли з системи');
-}
-
 const loginBtnEl = document.getElementById('loginBtn');
 if (loginBtnEl) {
-    loginBtnEl.addEventListener('click', function() {
-        if (currentUser) {
-            logoutUser();
-        } else {
-            openLoginModal();
-        }
-    });
+    loginBtnEl.addEventListener('click', handleAuthClick);
 }
 
 function respondToTask(index) {
